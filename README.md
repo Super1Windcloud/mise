@@ -3,15 +3,6 @@
   <img src="https://github.com/jdx/mise/assets/216188/27a8ea18-9383-4d86-a445-305b9a6248c1" alt="mise-logo" width="400" /><br />
   mise-en-place
 </a></h1>
-<!-- <a href="https://mise.jdx.dev"><picture> -->
-<!--   <source media="(prefers-color-scheme: dark)" width="617" srcset="./docs/logo-dark@2x.png"> -->
-<!--   <img alt="mise logo" width="617" src="./docs/logo-light@2x.png"> -->
-<!-- </picture></a> -->
-<a href="https://crates.io/crates/mise"><img alt="Crates.io" src="https://img.shields.io/crates/v/mise?style=for-the-badge"></a>
-<a href="https://github.com/jdx/mise/blob/main/LICENSE"><img alt="GitHub" src="https://img.shields.io/github/license/jdx/mise?color=%2344CC11&style=for-the-badge"></a>
-<a href="https://github.com/jdx/mise/actions/workflows/test.yml"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/jdx/mise/test.yml?style=for-the-badge"></a>
-<a href="https://discord.gg/mABnUDvP57"><img alt="Discord" src="https://img.shields.io/discord/1066429325269794907?color=%23738ADB&style=for-the-badge"></a>
-<p><em>The front-end to your dev env.</em></p>
 </div>
 
 ## What is it?
@@ -155,6 +146,4 @@ Find more examples in the [mise cookbook](https://mise.jdx.dev/mise-cookbook/).
 
 See [mise.jdx.dev](https://mise.jdx.dev)
 
-## Contributors
-
-[![Contributors](https://contrib.rocks/image?repo=jdx/mise)](https://github.com/jdx/mise/graphs/contributors)
+ 
