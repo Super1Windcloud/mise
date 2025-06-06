@@ -1,0 +1,224 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH mise 1  "mise "
+.SH NAME
+mise \- The front\-end to your dev env
+.SH SYNOPSIS
+\fBmise\fR [\fB\-C\fR|\fB\-\-cd\fR] [\fB\-E\fR|\fB\-\-env\fR] [\fB\-j\fR|\fB\-\-jobs\fR] [\fB\-\-output\fR] [\fB\-\-raw\fR] [\fB\-\-no\-config\fR] [\fB\-y\fR|\fB\-\-yes\fR] [\fB\-q\fR|\fB\-\-quiet\fR] [\fB\-\-silent\fR] [\fB\-v\fR|\fB\-\-verbose\fR]... [\fB\-h\fR|\fB\-\-help\fR] [\fITASK\fR] [\fITASK_ARGS\fR] [\fITASK_ARGS_LAST\fR] [\fIsubcommands\fR]
+.SH DESCRIPTION
+mise manages dev tools, env vars, and runs tasks. https://github.com/jdx/mise
+.SH OPTIONS
+.TP
+\fB\-C\fR, \fB\-\-cd\fR=\fIDIR\fR
+Change directory before running command
+.TP
+\fB\-E\fR, \fB\-\-env\fR=\fIENV\fR
+Set the environment for loading `mise.<ENV>.toml`
+.TP
+\fB\-j\fR, \fB\-\-jobs\fR=\fIJOBS\fR
+How many jobs to run in parallel [default: 8]
+.RS
+May also be specified with the \fBMISE_JOBS\fR environment variable.
+.RE
+.TP
+\fB\-\-output\fR=\fIOUTPUT\fR
+
+.TP
+\fB\-\-raw\fR
+Read/write directly to stdin/stdout/stderr instead of by line
+.TP
+\fB\-\-no\-config\fR
+Do not load any config files
+
+Can also use `MISE_NO_CONFIG=1`
+.TP
+\fB\-y\fR, \fB\-\-yes\fR
+Answer yes to all confirmation prompts
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Suppress non\-error messages
+.TP
+\fB\-\-silent\fR
+Suppress all task output and mise non\-error messages
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Show extra output (use \-vv for even more)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+[\fITASK\fR]
+Task to run.
+
+Shorthand for `mise task run <TASK>`.
+.SH SUBCOMMANDS
+.TP
+mise\-activate(1)
+Initializes mise in the current shell session
+.TP
+mise\-alias(1)
+Manage version aliases.
+.TP
+mise\-backends(1)
+Manage backends
+.TP
+mise\-bin\-paths(1)
+List all the active runtime bin paths
+.TP
+mise\-cache(1)
+Manage the mise cache
+.TP
+mise\-completion(1)
+Generate shell completions
+.TP
+mise\-config(1)
+Manage config files
+.TP
+mise\-deactivate(1)
+Disable mise for current shell session
+.TP
+mise\-doctor(1)
+Check mise installation for possible problems
+.TP
+mise\-en(1)
+[experimental] starts a new shell with the mise environment built from the current configuration
+.TP
+mise\-env(1)
+Exports env vars to activate mise a single time
+.TP
+mise\-exec(1)
+Execute a command with tool(s) set
+.TP
+mise\-fmt(1)
+Formats mise.toml
+.TP
+mise\-generate(1)
+[experimental] Generate files for various tools/services
+.TP
+mise\-implode(1)
+Removes mise CLI and all related data
+.TP
+mise\-install(1)
+Install a tool version
+.TP
+mise\-install\-into(1)
+Install a tool version to a specific path
+.TP
+mise\-latest(1)
+Gets the latest available version for a plugin
+.TP
+mise\-link(1)
+Symlinks a tool version into mise
+.TP
+mise\-ls(1)
+List installed and active tool versions
+.TP
+mise\-ls\-remote(1)
+List runtime versions available for install.
+.TP
+mise\-outdated(1)
+Shows outdated tool versions
+.TP
+mise\-plugins(1)
+Manage plugins
+.TP
+mise\-prune(1)
+Delete unused versions of tools
+.TP
+mise\-registry(1)
+List available tools to install
+.TP
+mise\-reshim(1)
+Creates new shims based on bin paths from currently installed tools.
+.TP
+mise\-run(1)
+Run task(s)
+.TP
+mise\-search(1)
+Search for tools in the registry
+.TP
+mise\-self\-update(1)
+Updates mise itself.
+.TP
+mise\-set(1)
+Set environment variables in mise.toml
+.TP
+mise\-settings(1)
+Manage settings
+.TP
+mise\-shell(1)
+Sets a tool version for the current session.
+.TP
+mise\-sync(1)
+Synchronize tools from other version managers with mise
+.TP
+mise\-tasks(1)
+Manage tasks
+.TP
+mise\-test\-tool(1)
+Test a tool installs and executes
+.TP
+mise\-tool(1)
+Gets information about a tool
+.TP
+mise\-trust(1)
+Marks a config file as trusted
+.TP
+mise\-uninstall(1)
+Removes installed tool versions
+.TP
+mise\-unset(1)
+Remove environment variable(s) from the config file.
+.TP
+mise\-unuse(1)
+Removes installed tool versions from mise.toml
+.TP
+mise\-upgrade(1)
+Upgrades outdated tools
+.TP
+mise\-use(1)
+Installs a tool and adds the version to mise.toml.
+.TP
+mise\-version(1)
+Display the version of mise
+.TP
+mise\-watch(1)
+Run task(s) and watch for changes to rerun it
+.TP
+mise\-where(1)
+Display the installation path for a tool
+.TP
+mise\-which(1)
+Shows the path that a tool\*(Aqs bin points to.
+.TP
+mise\-help(1)
+Print this message or the help of the given subcommand(s)
+.SH EXTRA
+Examples:
+
+    $ mise install node@20.0.0       Install a specific node version
+    $ mise install node@20           Install a version matching a prefix
+    $ mise install node              Install the node version defined in config
+    $ mise install                   Install all plugins/tools defined in config
+
+    $ mise install cargo:ripgrep            Install something via cargo
+    $ mise install npm:prettier             Install something via npm
+
+    $ mise use node@20               Use node\-20.x in current project
+    $ mise use \-g node@20            Use node\-20.x as default
+    $ mise use node@latest           Use latest node in current directory
+
+    $ mise up \-\-interactive          Show a menu to upgrade tools
+
+    $ mise x \-\- npm install          `npm install` w/ config loaded into PATH
+    $ mise x node@20 \-\- node app.js  `node app.js` w/ config + node\-20.x on PATH
+
+    $ mise set NODE_ENV=production   Set NODE_ENV=production in config
+
+    $ mise run build                 Run `build` tasks
+    $ mise watch build               Run `build` tasks repeatedly when files change
+
+    $ mise settings                  Show settings in use
+    $ mise settings color=0          Disable color by modifying global config file
+.SH AUTHORS
+Jeff Dickey <@jdx>

@@ -1,0 +1,6 @@
+data/
+!data/plugins
+cache/
+state/
+cwd/
+test-build-output.txt

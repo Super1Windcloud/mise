@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+export PATH="$MISE_DATA_DIR/shims:$PATH"
+
+assert_fail "which dummy"
+
+mise i dummy@latest
+assert_contains "which dummy" "/mise/shims/dummy"
+
+mise uninstall -a dummy
+assert_fail "which dummy"

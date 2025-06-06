@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+mise install tiny@1.0.1 tiny@3.1.0
+mkdir -p tmp/tiny
+mise link tiny@9.8.7 tmp/tiny
+
+assert_contains "mise ls tiny" "tiny  9.8.7 (symlink)"
+
+mise uninstall tiny@9.8.7

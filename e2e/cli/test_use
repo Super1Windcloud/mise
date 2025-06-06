@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+mise i dummy@1.0.0
+
+assert_contains "mise use dummy" "dummy@1.0.0"
+assert "mise current dummy" "1.0.0"
+
+assert_contains "mise use dummy@2" "dummy@2."
+assert "mise current dummy" "2.0.0"
+
+assert_not_contains "mise use --rm dummy" "dummy"
+assert "mise current dummy" ""
+
+assert_contains "mise use --env local dummy@2" "dummy@2."
+assert "cat mise.local.toml" '[tools]
+dummy = "2"'
+assert "mise current dummy" "2.0.0"
+rm mise.local.toml
+
+assert_contains "mise use --env local dummy@1" "dummy@1."
+assert "cat mise.local.toml" '[tools]
+dummy = "1"'
+mv mise.local.toml .mise.local.toml
+assert_contains "mise use --env local dummy@2" "dummy@2."
+assert_fail "test -f mise.local.toml"
+assert "cat .mise.local.toml" '[tools]
+dummy = "2"'
+rm .mise.local.toml
+
+mise use dummy@1 dummy@2
+assert "mise current dummy" "1.0.0 2.0.0"
+
+mise use --pin dummy@1
+assert "cat mise.toml" '[tools]
+dummy = "1.0.0"'
+
+MISE_PIN=1 mise use --fuzzy dummy@1
+assert "cat mise.toml" '[tools]
+dummy = "1"'
+
+MISE_PIN=1 mise use dummy@1 --path mise.local.toml
+assert "cat mise.local.toml" '[tools]
+dummy = "1.0.0"'
+
+mise use --rm dummy --path mise.local.toml
+assert "cat mise.local.toml" ""
+
+mise use dummy@1 --path .
+assert "cat mise.toml" '[tools]
+dummy = "1"'
+
+mise use dummy@1
+assert "cat mise.local.toml" '[tools]
+dummy = "1"'
+
+rm -f mise.local.toml mise.toml
+echo "dummy 1.0.0" >.tool-versions
+mise use dummy@2
+assert "cat .tool-versions" "dummy 2"
+
+rm -f .tool-versions
+
+mise use -g dummy@1
+assert "cat ~/.config/mise/config.toml" '[tools]
+dummy = "1"'
+rm -f ~/.config/mise/config.toml
+
+mise use -g "ubi:cli/cli[exe=gh]"
+assert "cat ~/.config/mise/config.toml" '[tools]
+"ubi:cli/cli" = { version = "latest", exe = "gh" }'
+rm -f ~/.config/mise/config.toml
+
+mise use -g gh@2
+assert "cat ~/.config/mise/config.toml" '[tools]
+gh = "2"'
+rm -f ~/.config/mise/config.toml
+
+export MISE_ENV=test
+mise use -g dummy@1
+assert "cat ~/.config/mise/config.toml" '[tools]
+dummy = "1"'
+rm -f ~/.config/mise/config.toml
+unset MISE_ENV
+
+mise uninstall dummy --all
+mise use dummy@system
+assert "mise ls dummy" "dummy  system  ~/workdir/mise.toml  system"
+
+mkdir -p ~/workdir/mydummy
+mise use "dummy@path:~/workdir/mydummy"
+assert_contains "mise ls dummy" "dummy  path:~/workdir/mydummy  ~/workdir/mise.toml  path:~/workdir/mydummy"
+
+cd "$HOME" || exit 1
+assert_contains "mise use dummy@system" "mise ~/.config/mise/config.toml tools: dummy@system"
+
+assert_contains "mise use --path mise.path.toml dummy@1" "dummy@1."
+assert "cat mise.path.toml" '[tools]
+dummy = "1"'
+rm mise.path.toml

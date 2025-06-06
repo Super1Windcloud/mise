@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+cat <<EOF >mise.toml
+tasks.a.run = "echo a"
+tasks.b.depends = ["a"]
+tasks.b.run = "echo b"
+tasks.c.depends = ["a"]
+tasks.c.run = "echo c"
+tasks.c.wait_for = ["b"]
+tasks.d.depends = ["c"]
+tasks.d.run = "echo d"
+tasks.d.wait_for = ["b"]
+EOF
+
+assert "mise run d" "a
+c
+d"
+
+assert "mise run d ::: b" "a
+b
+c
+d"
+
+cat <<EOF >mise.toml
+[tasks."hello:1"]
+description = "Hello from 1"
+run = "echo Hello from 1"
+
+[tasks."hello:2"]
+description = "Hello from 2"
+run = "echo Hello from 2"
+
+[tasks."hello:all"]
+description = "Hello from all"
+depends = ["hello:*"]
+EOF
+assert_contains "mise run hello:all" "[hello:1] Hello from 1"
+assert_contains "mise run hello:all" "[hello:2] Hello from 2"
+assert "mise task deps" "hello:1
+hello:2
+hello:all
+├── hello:2
+└── hello:1"
+assert "mise task hello:all" 'Task: hello:all
+Description: Hello from all
+Source: ~/workdir/mise.toml
+Depends on: hello:*
+
+Usage Spec:
+  name hello:all
+  bin hello:all'
+
+echo '' >mise.toml
+
+mkdir -p mise-tasks && echo "" >mise-tasks/build.sh && chmod +x mise-tasks/build.sh
+assert "mise task deps build" "build"
+assert "mise task deps build.sh" "build"

@@ -1,0 +1,15 @@
+---
+source: src/env_diff.rs
+expression: deserialized.to_patches()
+snapshot_kind: text
+---
+[
+    Change(
+        "b",
+        "3",
+    ),
+    Add(
+        "c",
+        "4",
+    ),
+]

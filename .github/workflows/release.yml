@@ -1,0 +1,305 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["release"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref_name }}
+
+env:
+  CARGO_TERM_COLOR: always
+  DRY_RUN: ${{ startsWith(github.event.ref, 'refs/tags/v') && '0' || '1' }}
+  RUST_BACKTRACE: 1
+  GITHUB_API_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-tarball:
+    name: build-tarball-${{matrix.name}}
+    runs-on: ${{matrix.runs-on}}
+    timeout-minutes: 45
+    env:
+      MINIO_AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_AWS_ACCESS_KEY_ID }}
+      MINIO_AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_AWS_SECRET_ACCESS_KEY }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu
+            name: linux-x64
+            target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-latest
+          - os: ubuntu
+            name: linux-x64-musl
+            target: x86_64-unknown-linux-musl
+            runs-on: ubuntu-latest
+          - os: ubuntu
+            name: linux-arm64
+            target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-latest
+          - os: ubuntu
+            name: linux-arm64-musl
+            target: aarch64-unknown-linux-musl
+            runs-on: ubuntu-latest
+          - os: ubuntu
+            name: linux-armv7
+            target: armv7-unknown-linux-gnueabi
+            runs-on: ubuntu-latest
+          - os: ubuntu
+            name: linux-armv7-musl
+            target: armv7-unknown-linux-musleabi
+            runs-on: ubuntu-latest
+          - os: macos
+            name: macos-x64
+            target: x86_64-apple-darwin
+            runs-on: macos-latest
+          - os: macos
+            name: macos-arm64
+            target: aarch64-apple-darwin
+            runs-on: macos-latest
+    steps:
+      - if: matrix.os == 'macos'
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTS_P12 }}
+          p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTS_P12_PASS }}
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: cache crates
+        id: cache-crates
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry/cache
+          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-registry
+      - if: matrix.runs-on != 'ubuntu-latest'
+        run: rustup target add ${{matrix.target}}
+      - if: matrix.runs-on == 'ubuntu-latest'
+        uses: taiki-e/install-action@cross
+      - name: build-tarball
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: scripts/build-tarball.sh ${{matrix.target}}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{matrix.target}}
+          path: |
+            dist/mise-*.tar.xz
+            dist/mise-*.tar.gz
+            dist/mise-*.tar.zst
+          if-no-files-found: error
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-cache }
+      - if: steps.cache-crates.outputs.cache-hit != 'true'
+        run: cargo cache --autoclean
+  build-tarball-windows:
+    name: build-tarball-windows-${{matrix.arch}}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add ${{matrix.target}}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{matrix.arch}}
+      - run: scripts/build-tarball.ps1 ${{matrix.target}}
+        env:
+          OS: windows
+          ARCH: ${{matrix.arch}}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{matrix.target}}
+          path: dist/*.zip
+          if-no-files-found: error
+  e2e-linux:
+    name: e2e-linux-${{matrix.tranche}}
+    needs: [build-tarball]
+    runs-on: ubuntu-latest
+    #container: ghcr.io/jdx/mise:github-actions
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tranche: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zsh/fish/direnv/fd
+        run: sudo apt-get update; sudo apt-get install zsh fish direnv fd-find
+      - name: Install fd-find
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          ln -s "$(which fdfind)" "$HOME/.local/bin/fd"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-x86_64-unknown-linux-gnu
+          path: dist
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: usage-cli
+      - run: tar -C "$HOME" -xvf "dist/mise-$(./scripts/get-version.sh)-linux-x64.tar.zst"
+      - run: echo "$HOME/mise/bin" >> "$GITHUB_PATH"
+      - run: mise -v
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise i
+      - name: Run e2e tests
+        uses: nick-fields/retry@v3
+        env:
+          TEST_TRANCHE: ${{matrix.tranche}}
+          TEST_TRANCHE_COUNT: 8
+          TEST_ALL: 1
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: ./e2e/run_all_tests
+  rpm:
+    runs-on: ubuntu-latest
+    needs: [build-tarball]
+    timeout-minutes: 10
+    container: ghcr.io/jdx/mise:rpm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.MISE_GPG_KEY }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-x86_64-unknown-linux-gnu
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-aarch64-unknown-linux-gnu
+          path: dist
+      - run: scripts/build-rpm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm
+          path: dist/rpmrepo
+          if-no-files-found: error
+  deb:
+    runs-on: ubuntu-latest
+    needs: [build-tarball]
+    container: ghcr.io/jdx/mise:deb
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.MISE_GPG_KEY }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-x86_64-unknown-linux-gnu
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-aarch64-unknown-linux-gnu
+          path: dist
+      - run: scripts/build-deb.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: dist/deb
+          if-no-files-found: error
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    needs:
+      - rpm
+      - deb
+      - e2e-linux
+      - build-tarball-windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.MISE_GPG_KEY }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+      - name: cache zipsign
+        id: cache-zipsign
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/zipsign
+          key: cargo-zipsign
+      - run: ./scripts/setup-zipsign.sh
+        env:
+          ZIPSIGN: ${{ secrets.ZIPSIGN }}
+      - name: Install fd-find
+        run: |
+          sudo apt-get update
+          sudo apt-get install fd-find minisign
+          mkdir -p "$HOME/.local/bin"
+          ln -s "$(which fdfind)" "$HOME/.local/bin/fd"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - run: ls -R artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: |
+            mise-v*.tar.gz
+            mise-v*.tar.xz
+            mise-v*.tar.zst
+            mise-v*.zip
+          merge-multiple: true
+      - run: echo "${{ secrets.MINISIGN_KEY }}" >minisign.key
+      - run: ls -R artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball-x86_64-unknown-linux-gnu
+          path: dist
+      - run: tar -C "$HOME" -xvf "dist/mise-$(./scripts/get-version.sh)-linux-x64.tar.zst"
+      - run: echo "$HOME/mise/bin" >> "$GITHUB_PATH"
+      - run: mise x -- scripts/release.sh
+        env:
+          CLOUDFLARE_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CLOUDFLARE_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: GitHub Release Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.event.ref, 'refs/tags/v')
+        with:
+          fail_on_unmatched_files: true
+          draft: false
+          files: releases/${{github.ref_name}}/*
+          generate_release_notes: true
+          token: ${{ secrets.RTX_GITHUB_BOT_TOKEN }}
+  bump-alpine:
+    runs-on: ubuntu-latest
+    container: ghcr.io/jdx/mise:alpine
+    timeout-minutes: 30
+    needs: [release]
+    if: startsWith(github.event.ref, 'refs/tags/v') && endsWith(github.event.ref, '0')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Bump APKBUILD
+        run: sudo -Eu packager ./scripts/release-alpine.sh
+        env:
+          ALPINE_GITLAB_TOKEN: ${{ secrets.ALPINE_GITLAB_TOKEN }}
+          ALPINE_KEY_ID: ${{ secrets.ALPINE_KEY_ID }}
+          ALPINE_PRIV_KEY: ${{ secrets.ALPINE_PRIV_KEY }}
+          ALPINE_PUB_KEY: ${{ secrets.ALPINE_PUB_KEY }}

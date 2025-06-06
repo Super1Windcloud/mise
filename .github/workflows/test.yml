@@ -1,0 +1,279 @@
+name: test
+on:
+  push:
+    tags: ["v*"]
+    branches: ["main", "mise"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+  MISE_EXPERIMENTAL: 1
+  MISE_LOCKFILE: 1
+  RUST_BACKTRACE: 1
+  GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+permissions:
+  pull-requests: write
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - run: |
+          cargo build --all-features
+          echo "$PWD/target/debug" >> "$GITHUB_PATH"
+      - run: mise -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mise-ubuntu-latest
+          path: target/debug/mise
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise i
+
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - run: |
+          cargo build --all-features
+          echo "$PWD/target/debug" >> "$GITHUB_PATH"
+      - run: mise -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mise-macos-latest
+          path: target/debug/mise
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise i
+      - run: mise x -- wait-for-gh-rate-limit
+
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      MISE_DATA_DIR: ~/.local/share/mise
+      MISE_CACHE_DIR: ~/.cache/mise
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build
+      - shell: pwsh
+        run: |
+          cargo build
+          Add-Content $env:GITHUB_PATH "$env:GITHUB_WORKSPACE\target\debug"
+      - run: mise -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mise-windows-latest
+          path: target/debug/mise.exe
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise i
+
+  unit:
+    strategy:
+      fail-fast: false
+      # matrix: { os: [ubuntu-latest, macos-latest] }
+      matrix: { os: [macos-latest] }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    needs: [build-ubuntu, build-macos]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+          submodules: true
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-msrv,cargo-machete
+      - run: rustup component add llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: unit
+      - uses: actions/download-artifact@v4
+        with:
+          name: mise-${{ matrix.os }}
+          path: target/debug
+      - run: echo "$PWD/target/debug" >> "$GITHUB_PATH" && chmod +x target/debug/mise
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise install
+      - run: mise x -- bun i
+      - run: mise x -- cargo test --all-features
+      - run: cargo deny check
+      - run: cargo msrv verify
+      - run: cargo machete --with-metadata
+      - run: ./scripts/test-standalone.sh
+      - run: mise run lint
+
+  nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+      - run: rustup default nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nightly
+      - run: |
+          cargo build --all-features
+          echo "$PWD/target/debug" >> "$GITHUB_PATH"
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise install
+      - run: mise run test
+
+  coverage:
+    name: coverage-${{matrix.tranche}}
+    runs-on: ubuntu-latest
+    needs: [build-ubuntu]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        tranche: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get install \
+            bison \
+            build-essential \
+            direnv \
+            fd-find \
+            fish \
+            pipx \
+            python3-venv \
+            zsh
+      - run: |
+          mkdir -p "$HOME/.local/bin"
+          ln -s "$(which fdfind)" "$HOME/.local/bin/fd"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@v4
+        with:
+          name: mise-ubuntu-latest
+          path: target/debug
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: echo "$PWD/target/debug" >> "$GITHUB_PATH" && chmod +x target/debug/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - name: Test w/ coverage
+        uses: nick-fields/retry@v3
+        env:
+          TEST_TRANCHE: ${{matrix.tranche}}
+          TEST_TRANCHE_COUNT: 8
+          TEST_ALL: ${{github.head_ref == 'release' && '1' || '0'}}
+        with:
+          timeout_minutes: 30
+          retry_wait_seconds: 30
+          max_attempts: 2
+          command: mise run test:coverage
+  windows-unit:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      MISE_DATA_DIR: ~/.local/share/mise
+      MISE_CACHE_DIR: ~/.cache/mise
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: unit
+      - name: cargo test
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 30
+          retry_wait_seconds: 30
+          max_attempts: 2
+          command: cargo test
+  windows-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    needs: [build-windows]
+    env:
+      MISE_DATA_DIR: ~/.local/share/mise
+      MISE_CACHE_DIR: ~/.cache/mise
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mise-windows-latest
+          path: target/debug
+      - run: ls target\debug
+      - run: Add-Content $env:GITHUB_PATH "$env:GITHUB_WORKSPACE\target\debug"
+      - uses: actions/cache@v4
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}-mise-tools-${{ hashFiles('mise.lock') }}
+          path: |
+            ~/.local/share/mise
+            ~/.cache/mise
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: mise install
+      - name: e2e
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 30
+          retry_wait_seconds: 30
+          max_attempts: 2
+          command: pwsh e2e-win\run.ps1

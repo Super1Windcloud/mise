@@ -1,0 +1,15 @@
+---
+source: src/config/config_file/mise_toml.rs
+expression: cf.env_entries().unwrap()
+snapshot_kind: text
+---
+[
+    Val(
+        "NODE_ENV",
+        "production",
+        EnvDirectiveOptions {
+            tools: false,
+            redact: false,
+        },
+    ),
+]

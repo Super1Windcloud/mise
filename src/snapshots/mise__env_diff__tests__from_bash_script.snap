@@ -1,0 +1,15 @@
+---
+source: src/env_diff.rs
+expression: ed
+snapshot_kind: text
+---
+EnvDiff {
+    old: [
+        "MODIFIED_VAR=original",
+    ],
+    new: [
+        "ADDED_VAR=added",
+        "MODIFIED_VAR=modified",
+        "MULTILINE_VAR=line1\nline2\nline3",
+    ],
+}

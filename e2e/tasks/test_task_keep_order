@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+cat <<EOF >mise.toml
+tasks.a = "echo a"
+tasks.b = "echo b"
+tasks.c = "echo c"
+tasks.all.depends = ['a', 'b', 'c']
+EOF
+assert "mise run -o keep-order all" "[a] a
+[b] b
+[c] c"
+
+cat <<EOF >mise.toml
+tasks.a = "echo a"
+tasks.b = "echo b ; exit 1"
+tasks.all.depends = ['a', 'b']
+EOF
+assert_fail "mise run -o keep-order all" "[b] b"

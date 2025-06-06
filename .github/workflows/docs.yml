@@ -1,0 +1,43 @@
+name: docs
+
+on:
+  push:
+    paths:
+      - "docs/**"
+      - "tasks/docs/**"
+    branches:
+      - main
+  pull_request:
+    paths:
+      - "docs/**"
+      - "tasks/docs/**"
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  docs:
+    if: github.repository == 'jdx/mise'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0 # for lastUpdated
+      - uses: jdx/mise-action@c94f0bf9e520b150e34c017db785461f7e71c5fb # v2
+        with:
+          install_args: bun
+          cache: true
+      - run: mise x wait-for-gh-rate-limit -- wait-for-gh-rate-limit
+      - run: bun i
+      - run: mise run docs:release
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          DRY_RUN: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}

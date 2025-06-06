@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+mise use dummy@latest
+
+eval "$(mise activate bash)" && _mise_hook
+assert "PATH="" $(which mise) doctor --json"
+
+mise p add uv
+mise use uv
+assert_contains "mise doctor" "asdf:uv@"
+assert_contains "mise doctor -J" "dummy"

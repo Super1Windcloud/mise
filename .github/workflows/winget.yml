@@ -1,0 +1,24 @@
+name: winget
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: jdx/winget-pkgs
+          token: ${{ secrets.RTX_GITHUB_BOT_TOKEN }}
+          fetch-depth: 0
+      - run: git config user.name mise-en-dev
+      - run: git config user.email release@mise.jdx.dev
+      - run: git remote add microsoft https://github.com/microsoft/winget-pkgs
+      - run: git pull --rebase microsoft master
+      - run: git push -f origin master
+      - uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: jdx.mise
+          max-versions-to-keep: 5
+          token: ${{ secrets.RTX_GITHUB_BOT_TOKEN }}

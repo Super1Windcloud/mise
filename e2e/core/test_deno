@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+if [[ ${MISE_DISABLE_TOOLS:-} == *deno* ]]; then
+  warn "Skipping deno tests"
+  exit 0
+fi
+
+cat <<EOF >.deno-version
+1.43.3
+EOF
+
+mise i deno
+assert_contains "mise x deno -- deno -V" "deno 1.43.3"

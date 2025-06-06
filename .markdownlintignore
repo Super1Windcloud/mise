@@ -1,0 +1,9 @@
+/registry/
+/target/
+CHANGELOG.md
+docs/node_modules/
+docs/cli/watch.md
+node_modules/
+test/
+/tasks.md
+/comment.md
