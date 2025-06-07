@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::cli::args::ToolArg;
 use crate::config::Config;
 use crate::hooks::Hooks;
@@ -7,6 +5,10 @@ use crate::toolset::{InstallOptions, ResolveOptions, ToolRequest, ToolSource, To
 use crate::{config, env, hooks};
 use eyre::Result;
 use itertools::Itertools;
+use std::collections::HashSet;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Install a tool version
 ///
@@ -69,22 +71,30 @@ impl Install {
         runtimes: &[ToolArg],
         original_tool_args: Vec<ToolArg>,
     ) -> Result<()> {
-        let tools = runtimes.iter().map(|ta| ta.ba.short.clone()).collect();
-        let mut ts = config
+        let tools: HashSet<String> = runtimes.iter().map(|ta| ta.ba.short.clone()).collect();
+        if tools.is_empty() {
+            return Err(eyre::eyre!("no runtimes specified"));
+        };
+        let install_name = tools.iter().next().clone().unwrap();
+
+        let mut ts: Toolset = config
             .get_tool_request_set()
             .await?
-            .filter_by_tool(tools)
+            .filter_by_tool(tools.clone())
             .into();
+        let mut t = ts.clone();
         let tool_versions = self.get_requested_tool_versions(&ts, runtimes)?;
+        let mut cfg = config.clone();
+
         let mut versions = if tool_versions.is_empty() {
             warn!("no runtimes to install");
             warn!("specify a version with `mise install <PLUGIN>@<VERSION>`");
             vec![]
         } else {
-            ts.install_all_versions(&mut config, tool_versions, &self.install_opts())
+            ts.install_all_versions(&mut config, tool_versions.clone(), &self.install_opts())
                 .await?
         };
-        // because we may be installing a tool that is not in config, we need to restore the original tool args and reset everything
+
         env::TOOL_ARGS
             .write()
             .unwrap()
@@ -92,8 +102,55 @@ impl Install {
         let config = Config::reset().await?;
         let ts = config.get_toolset().await?;
         let current_versions = ts.list_current_versions();
-        // ensure that only current versions are sent to lockfile rebuild
+        let mut install_root_dir = String::new();
+        let versions_dirs = current_versions
+            .iter()
+            .map(|(_, cv)| {
+                let _version = cv.version.clone();
+                let path = cv.install_path();
+                let path = path.parent().unwrap().to_path_buf();
+                if path.to_str().unwrap().contains(install_name) {
+                    install_root_dir = path.to_str().unwrap().to_string();
+                }
+                path.join(_version)
+            })
+            .collect::<Vec<PathBuf>>();
+        versions.iter().for_each(|version| {
+            let version = version.request.version();
+            let path = Path::new(install_root_dir.as_str()).join(version);
+            if !path.exists() || !path.to_str().unwrap().contains(install_name) {
+                return;
+            }
+            let content = std::fs::read_to_string(&path).unwrap();
+            let parent = path.parent().unwrap().to_path_buf();
+            let target_path = parent.join(content);
+            let target_path = if target_path.exists() {
+                target_path.canonicalize().unwrap()
+            } else {
+                target_path
+            };
+
+            #[cfg(debug_assertions)]
+            println!("target dir path {} ", target_path.display());
+
+            if !target_path.exists() && path.exists() && path.is_file() {
+                #[cfg(debug_assertions)]
+                dbg!(&path);
+                std::fs::remove_file(&path).unwrap();
+            }
+        });
+
+        let mut versions = if tool_versions.is_empty() {
+            warn!("no runtimes to install");
+            warn!("specify a version with `mise install <PLUGIN>@<VERSION>`");
+            vec![]
+        } else {
+            t.install_all_versions(&mut cfg, tool_versions, &self.install_opts())
+                .await?
+        };
+
         versions.retain(|tv| current_versions.iter().any(|(_, cv)| tv == cv));
+
         config::rebuild_shims_and_runtime_symlinks(&config, ts, &versions).await?;
         Ok(())
     }

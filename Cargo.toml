@@ -40,16 +40,22 @@ path ="shim_exe/src/main.rs"
 name = "mise"
 path = "src/main.rs"
 
-#[[bench]]
-#name = "config_bench"
-#harness = false
-
-[profile.serious]
-inherits = "release"
+ 
+[profile.release]
 lto = true
 
+
+[profile.dev]
+opt-level = 0 
+debug = true
+debug-assertions = true
+overflow-checks = true
+incremental = true     
+codegen-units = 256     
+lto = false
+
 [profile.dev.package.backtrace]
-opt-level = 3
+opt-level = 0 
 
 [dependencies]
 async-backtrace = "0.2"

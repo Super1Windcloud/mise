@@ -145,7 +145,7 @@ fn add_shim(mise_bin: &Path, symlink_path: &Path, shim: &str) -> Result<()> {
     match Settings::get().windows_shim_mode.as_ref() {
         "file" => {
             let shim = shim.trim_end_matches(".cmd");
-            let shim_bin_driver = include_bytes!("./assets/shim_driver.exe");
+            let shim_bin_driver = include_bytes!("./assets/shim_driver.exe"); 
 
             // write a shim file without extension for use in Git Bash/Cygwin
             file::write(
@@ -162,8 +162,11 @@ fn add_shim(mise_bin: &Path, symlink_path: &Path, shim: &str) -> Result<()> {
                     display_path(mise_bin),
                     display_path(symlink_path)
                 )
-            })?;
-            file::write(symlink_path.with_extension("exe"), shim_bin_driver)?;
+            })?; 
+            #[cfg(debug_assertions) ]
+            println!("shim_bin_driver: {}", symlink_path.with_extension("exe").display());  
+            file::write(symlink_path.with_extension("exe"), shim_bin_driver)?; 
+            
             file::write(
                 symlink_path.with_extension("cmd"),
                 formatdoc! {r#"
