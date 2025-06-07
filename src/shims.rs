@@ -309,7 +309,8 @@ async fn get_desired_shims(config: &Arc<Config>, toolset: &Toolset) -> Result<Ha
                     "file" => {
                         vec![
                             p.with_extension("").to_string_lossy().to_string(),
-                            p.with_extension("cmd").to_string_lossy().to_string(),
+                            p.with_extension("cmd").to_string_lossy().to_string(), 
+                            p.with_extension("exe").to_string_lossy().to_string() 
                         ]
                     }
                     _ => panic!("Unknown shim mode"),
